@@ -1,4 +1,4 @@
-/* * Data converted from C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/esp-idf/mbedtls/x509_crt_bundle
+/* * Data converted from C:/tn20_test/code/servo_driver/build/esp-idf/mbedtls/x509_crt_bundle
  */
 .data
 #if !defined (__APPLE__) && !defined (__linux__)

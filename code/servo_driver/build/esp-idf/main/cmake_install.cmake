@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/main
+# Install script for directory: C:/tn20_test/code/servo_driver/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

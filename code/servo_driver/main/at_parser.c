@@ -10,6 +10,7 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "freertos/task.h"
+#include "fsr_monitor.h"
 #include "servo_task.h"
 #include "system_commands.h"
 #include "uart_receiver.h"
@@ -24,6 +25,8 @@
 #define POWER_ON_BUTTON_HOLD_MS  3800
 #define POWER_OFF_STAGE_DELAY_MS  250
 #define AI_BUTTON_SERVO_ID       2
+#define FSR_ACTION_CAPTURE_MS    2000
+#define FSR_REPEAT_EXTRA_SETTLE_MS 1500
 
 static const char *TAG = "at_parser";
 static QueueHandle_t s_line_queue;
@@ -31,6 +34,14 @@ static at_set_id_handler_t s_set_id_handler;
 static at_action_handler_t s_action_handler;
 static at_read_id_handler_t s_read_id_handler;
 static bool s_started;
+static unsigned int s_force_sample_count;
+static float s_force_sum_g;
+static float s_force_average_g;
+static float s_force_min_g;
+static float s_force_max_g;
+static float s_force_last_g;
+
+static void fsr_log_peak(const char *action);
 
 static void send_run_over(void)
 {
@@ -39,6 +50,91 @@ static void send_run_over(void)
         UART_NUM_0,
         response,
         sizeof(response) - 1);
+}
+
+static void fsr_stats_reset(void)
+{
+    s_force_sample_count = 0;
+    s_force_sum_g = 0.0f;
+    s_force_average_g = 0.0f;
+    s_force_min_g = 0.0f;
+    s_force_max_g = 0.0f;
+    s_force_last_g = 0.0f;
+}
+
+static esp_err_t run_fsr_repeat_test(
+    int servo_id,
+    int count)
+{
+    if ((servo_id != 1 && servo_id != 2) ||
+        count < 1 || count > 50) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    fsr_stats_reset();
+    fsr_monitor_set_periodic_logging(false);
+
+    esp_err_t error = ESP_OK;
+    for (int index = 0; index < count; ++index) {
+        fsr_monitor_reset_peak();
+        ESP_LOGI(
+            TAG,
+            "FSR repeat test: %d/%d",
+            index + 1,
+            count);
+
+        error = s_action_handler(
+            servo_id,
+            servo_get_press_angle(servo_id));
+        if (error != ESP_OK) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(BUTTON_PRESS_HOLD_MS));
+
+        error = s_action_handler(servo_id, 0);
+        if (error != ESP_OK) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(BUTTON_RETURN_SETTLE_MS));
+
+        fsr_log_peak("Repeat test");
+        if (index + 1 < count) {
+            vTaskDelay(pdMS_TO_TICKS(FSR_REPEAT_EXTRA_SETTLE_MS));
+        }
+    }
+
+    return error;
+}
+
+static void fsr_log_peak(const char *action)
+{
+    const float peak_g = fsr_monitor_get_peak_grams();
+
+    ++s_force_sample_count;
+    s_force_sum_g += peak_g;
+    s_force_last_g = peak_g;
+    s_force_average_g =
+        s_force_sum_g / (float)s_force_sample_count;
+
+    if (s_force_sample_count == 1 || peak_g < s_force_min_g) {
+        s_force_min_g = peak_g;
+    }
+    if (s_force_sample_count == 1 || peak_g > s_force_max_g) {
+        s_force_max_g = peak_g;
+    }
+
+    ESP_LOGI(
+        TAG,
+        "%s FSR peak: %dmV, %.0fg, %u ms; "
+        "samples=%u avg=%.0fg min=%.0fg max=%.0fg",
+        action,
+        fsr_monitor_get_peak_mv(),
+        peak_g,
+        fsr_monitor_get_peak_time_ms(),
+        s_force_sample_count,
+        s_force_average_g,
+        s_force_min_g,
+        s_force_max_g);
 }
 
 static bool parse_integer(
@@ -110,11 +206,11 @@ static bool parse_two_integer_parameters(
         return false;
     }
 
-    float half_steps = angle * 2.0f;
-    int rounded_half_steps = half_steps >= 0.0f
-        ? (int)(half_steps + 0.5f)
-        : (int)(half_steps - 0.5f);
-    float difference = half_steps - (float)rounded_half_steps;
+    float tenth_steps = angle * 10.0f;  //之前是2.0f，变量名由half_steps改为tenth_steps，表示角度的十分之一
+    int rounded_tenth_steps = tenth_steps >= 0.0f
+        ? (int)(tenth_steps + 0.5f)
+        : (int)(tenth_steps - 0.5f);
+    float difference = tenth_steps - (float)rounded_tenth_steps;
     if (difference < 0.0f) {
         difference = -difference;
     }
@@ -138,6 +234,7 @@ static bool is_power_on_command(const char *line)
 
 static esp_err_t run_power_button_action(void)
 {
+    fsr_monitor_reset_peak();
     esp_err_t error = s_action_handler(1, servo_get_press_angle(1));
     if (error == ESP_OK) {
         vTaskDelay(pdMS_TO_TICKS(POWER_OFF_STAGE_DELAY_MS));
@@ -158,6 +255,7 @@ static esp_err_t run_power_button_action(void)
 
 static esp_err_t run_power_on_action(void)
 {
+    fsr_monitor_reset_peak();
     esp_err_t error = s_action_handler(1, servo_get_press_angle(1));
     if (error == ESP_OK) {
         vTaskDelay(pdMS_TO_TICKS(POWER_ON_BUTTON_HOLD_MS));
@@ -173,6 +271,7 @@ static esp_err_t run_single_servo_button_action(
     int servo_id,
     int hold_ms)
 {
+    fsr_monitor_reset_peak();
     esp_err_t error =
         s_action_handler(servo_id, servo_get_press_angle(servo_id));
     if (error == ESP_OK) {
@@ -202,6 +301,119 @@ static void at_parse_task(void *argument)
         esp_err_t error;
         if (system_command_handle(line.text)) {
             continue;
+        } else if (parse_two_integer_parameters(
+                       line.text,
+                       "AT+FSRTEST=",
+                       &servo_id,
+                       &angle)) {
+            int repeat_count = (int)angle;
+            if ((float)repeat_count != angle ||
+                repeat_count < 1 || repeat_count > 50) {
+                error = ESP_ERR_INVALID_ARG;
+            } else {
+                error = run_fsr_repeat_test(
+                    servo_id,
+                    repeat_count);
+            }
+
+            if (error == ESP_OK) {
+                char response[160];
+                snprintf(
+                    response,
+                    sizeof(response),
+                    "+FSRTEST:servo=%d,count=%u,avg=%.0f,"
+                    "min=%.0f,max=%.0f,last=%.0f\r\nOK\r\n",
+                    servo_id,
+                    s_force_sample_count,
+                    s_force_average_g,
+                    s_force_min_g,
+                    s_force_max_g,
+                    s_force_last_g);
+                uart_write_bytes(UART_NUM_0, response, strlen(response));
+            } else {
+                char response[96];
+                snprintf(
+                    response,
+                    sizeof(response),
+                    "+FSRTEST:ERROR,completed=%u\r\n",
+                    s_force_sample_count);
+                uart_write_bytes(UART_NUM_0, response, strlen(response));
+            }
+            send_run_over();
+            ESP_ERROR_CHECK(uart_wait_tx_done(
+                UART_NUM_0,
+                pdMS_TO_TICKS(100)));
+            fsr_monitor_set_periodic_logging(true);
+        } else if (strcmp(line.text, "AT+FSR?") == 0) {
+            char response[80];
+            snprintf(
+                response,
+                sizeof(response),
+                "+FSR:%d,%+.0f,zero=%d\r\nOK\r\n",
+                fsr_monitor_get_current_mv(),
+                fsr_monitor_get_current_grams(),
+                fsr_monitor_get_zero_mv());
+            uart_write_bytes(UART_NUM_0, response, strlen(response));
+            send_run_over();
+        } else if (strcmp(line.text, "AT+FSRZERO") == 0) {
+            error = fsr_monitor_capture_zero();
+            if (error == ESP_OK) {
+                char response[64];
+                snprintf(
+                    response,
+                    sizeof(response),
+                    "+FSRZERO:%d\r\nOK\r\n",
+                    fsr_monitor_get_zero_mv());
+                uart_write_bytes(UART_NUM_0, response, strlen(response));
+            } else {
+                const char response[] = "+FSRZERO:ERROR\r\n";
+                uart_write_bytes(
+                    UART_NUM_0,
+                    response,
+                    sizeof(response) - 1);
+            }
+            send_run_over();
+        } else if (strcmp(line.text, "AT+FSRRESET") == 0) {
+            fsr_monitor_reset_peak();
+            const char response[] = "+FSRRESET:OK\r\n";
+            uart_write_bytes(
+                UART_NUM_0,
+                response,
+                sizeof(response) - 1);
+            send_run_over();
+        } else if (strcmp(line.text, "AT+FSRPEAK?") == 0) {
+            char response[80];
+            snprintf(
+                response,
+                sizeof(response),
+                "+FSRPEAK:%d,%+.0f,%ums\r\nOK\r\n",
+                fsr_monitor_get_peak_mv(),
+                fsr_monitor_get_peak_grams(),
+                fsr_monitor_get_peak_time_ms());
+            uart_write_bytes(UART_NUM_0, response, strlen(response));
+            send_run_over();
+        } else if (strcmp(line.text, "AT+FSRSTATS?") == 0) {
+            char response[128];
+            snprintf(
+                response,
+                sizeof(response),
+                "+FSRSTATS:count=%u,avg=%.0f,min=%.0f,"
+                "max=%.0f,last=%.0f\r\nOK\r\n",
+                s_force_sample_count,
+                s_force_average_g,
+                s_force_min_g,
+                s_force_max_g,
+                s_force_last_g);
+            uart_write_bytes(UART_NUM_0, response, strlen(response));
+            send_run_over();
+        } else if (strcmp(line.text, "AT+FSRSTATSRESET") == 0) {
+            fsr_stats_reset();
+            const char response[] = "+FSRSTATSRESET:OK\r\n";
+            uart_write_bytes(
+                UART_NUM_0,
+                response,
+                sizeof(response) - 1);
+            send_run_over();
         } else if (parse_id_command(line.text, "AT+READCURRENT=", &servo_id)) {
             int16_t current = 0;
             error = servo_read_current(servo_id, &current);
@@ -235,6 +447,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("Power-off button");
                 ESP_LOGI(
                     TAG,
                     "Power-off action completed: servo 1 %+.1f, servo 2 %+.1f",
@@ -262,6 +475,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("Power-on button");
                 ESP_LOGI(
                     TAG,
                     "Power-on action completed: servo 1 %+.1f, %d ms",
@@ -299,6 +513,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("AI long press");
                 ESP_LOGI(
                     TAG,
                     "AI button long-press completed: %d ms",
@@ -326,6 +541,7 @@ static void at_parse_task(void *argument)
             } else {
                 servo_id = 1;
                 press_angle = servo_get_press_angle(1);
+                fsr_monitor_reset_peak();
                 error = s_action_handler(servo_id, press_angle);
                 if (error == ESP_OK) {
                     vTaskDelay(pdMS_TO_TICKS(
@@ -345,6 +561,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("Long press");
                 ESP_LOGI(
                     TAG,
                     "Button long-press completed: %d ms",
@@ -407,6 +624,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("AI click button");
                 ESP_LOGI(TAG, "AI button click completed");
             } else {
                 const char response[] =
@@ -456,6 +674,7 @@ static void at_parse_task(void *argument)
         } else if (strcmp(line.text, "AT+CLICKBUTTON?") == 0) {
             servo_id = 1;
             press_angle = servo_get_press_angle(1);
+            fsr_monitor_reset_peak();
             error = s_action_handler(servo_id, press_angle);
             if (error == ESP_OK) {
                 vTaskDelay(pdMS_TO_TICKS(BUTTON_PRESS_HOLD_MS));
@@ -473,6 +692,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("Click button");
                 ESP_LOGI(
                     TAG,
                     "Button click completed: servo %d, %+.1f to 0 degrees",
@@ -496,6 +716,7 @@ static void at_parse_task(void *argument)
                        "AT+DBLCLICKBUTTON?") == 0) {
             servo_id = 1;
             press_angle = servo_get_press_angle(1);
+            fsr_monitor_reset_peak();
             error = s_action_handler(servo_id, press_angle);
             if (error == ESP_OK) {
                 vTaskDelay(pdMS_TO_TICKS(BUTTON_PRESS_HOLD_MS));
@@ -525,6 +746,7 @@ static void at_parse_task(void *argument)
                     UART_NUM_0,
                     response,
                     sizeof(response) - 1);
+                fsr_log_peak("Double-click button");
                 ESP_LOGI(
                     TAG,
                     "Button double-click completed");
@@ -603,6 +825,7 @@ static void at_parse_task(void *argument)
                        "AT+ACTION=",
                        &servo_id,
                        &angle)) {
+            fsr_monitor_reset_peak();
             error = s_action_handler(servo_id, angle);
             if (error == ESP_ERR_INVALID_ARG) {
                 ESP_LOGW(
@@ -618,6 +841,8 @@ static void at_parse_task(void *argument)
                     angle,
                     esp_err_to_name(error));
             } else {
+                vTaskDelay(pdMS_TO_TICKS(FSR_ACTION_CAPTURE_MS));
+                fsr_log_peak("AT+ACTION");
                 ESP_LOGI(
                     TAG,
                     "OK: servo %d moved to %.1f degrees",

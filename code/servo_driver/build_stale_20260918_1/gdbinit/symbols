@@ -1,0 +1,9 @@
+
+
+# Load bootloader symbols
+set confirm off
+    add-symbol-file C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader/bootloader.elf
+set confirm on
+
+# Load application symbols
+file C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/servo_driver.elf

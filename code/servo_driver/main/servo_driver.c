@@ -1,5 +1,6 @@
 #include "at_parser.h"
 #include "drv_oled.h"
+#include "fsr_monitor.h"
 #include "servo_task.h"
 #include "system_commands.h"
 #include "uart_receiver.h"
@@ -15,6 +16,7 @@ static const char *TAG = "oled_hello";
 void app_main(void)
 {
     ESP_ERROR_CHECK(system_commands_init());
+    ESP_ERROR_CHECK(fsr_monitor_start());
 
     ESP_LOGI(TAG, "Initializing OLED");
     ESP_ERROR_CHECK(drv_oled_init());
@@ -38,6 +40,9 @@ void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVO_ZERO_DELAY_MS));
     ESP_ERROR_CHECK(servo_set_angle(1, 0));
     ESP_ERROR_CHECK(servo_set_angle(2, 0));
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_ERROR_CHECK(fsr_monitor_capture_zero());
 
     ESP_LOGI(
         TAG,

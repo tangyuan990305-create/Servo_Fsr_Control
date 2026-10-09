@@ -1,13 +1,13 @@
 # Target labels
  bootloader
 # Source files and their labels
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/CMakeFiles/bootloader
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/CMakeFiles/bootloader.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/CMakeFiles/bootloader-complete.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
-C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+C:/tn20_test/code/servo_driver/build/CMakeFiles/bootloader
+C:/tn20_test/code/servo_driver/build/CMakeFiles/bootloader.rule
+C:/tn20_test/code/servo_driver/build/CMakeFiles/bootloader-complete.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/tn20_test/code/servo_driver/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

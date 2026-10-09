@@ -3,9 +3,10 @@ idf_component_register(
         "servo_driver.c"
         "drv_oled.c"
         "servo_task.c"
+        "fsr_monitor.c"
         "uart_receiver.c"
         "at_parser.c"
         "system_commands.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES driver esp_hw_support nvs_flash
+    PRIV_REQUIRES driver esp_hw_support nvs_flash fsr_sensor
 )

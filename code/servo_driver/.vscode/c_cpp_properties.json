@@ -3,7 +3,6 @@
     {
       "name": "ESP-IDF",
       "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-      "compilerPath": "C:\\Espressif\\tools\\xtensa-esp-elf\\esp-13.2.0_20240530\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
       "cStandard": "gnu17",
       "cppStandard": "gnu++17",
       "intelliSenseMode": "windows-gcc-x64"

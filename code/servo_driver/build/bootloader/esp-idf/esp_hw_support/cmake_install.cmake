@@ -39,11 +39,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader/esp-idf/esp_hw_support/port/esp32/cmake_install.cmake")
+  include("C:/tn20_test/code/servo_driver/build/bootloader/esp-idf/esp_hw_support/port/esp32/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
+  include("C:/tn20_test/code/servo_driver/build/bootloader/esp-idf/esp_hw_support/lowpower/cmake_install.cmake")
 endif()
 

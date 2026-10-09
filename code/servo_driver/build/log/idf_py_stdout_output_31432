@@ -1,0 +1,18 @@
+Command: ninja all
+[1/9] Performing build step for 'bootloader'
+[1/1] C:\windows\system32\cmd.exe /C "cd /D C:\tn20_test\code\servo_driver\build\bootloader\esp-idf\esptool_py && C:\Espressif\tools\python\v5.5.5\venv\Scripts\python.exe C:/esp/v5.5.5/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 C:/tn20_test/code/servo_driver/build/bootloader/bootloader.bin"
+Bootloader binary size 0x6610 bytes. 0x9f0 bytes (9%) free.
+[2/9] No install step for 'bootloader'
+[3/9] Completed 'bootloader'
+[4/9] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/at_parser.c.obj
+[5/9] Linking C static library esp-idf\main\libmain.a
+[6/9] Generating esp-idf/esp_system/ld/sections.ld
+[7/9] Linking CXX executable servo_driver.elf
+[8/9] Generating binary image from built executable
+esptool.py v4.12.0
+Creating esp32 image...
+Merged 2 ELF sections
+Successfully created esp32 image.
+Generated C:/tn20_test/code/servo_driver/build/servo_driver.bin
+[9/9] C:\windows\system32\cmd.exe /C "cd /D C:\tn20_test\code\servo_driver\build\esp-idf\esptool_py && C:\Espressif\tools\python\v5.5.5\venv\Scripts\python.exe C:/esp/v5.5.5/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app C:/tn20_test/code/servo_driver/build/partition_table/partition-table.bin C:/tn20_test/code/servo_driver/build/servo_driver.bin"
+servo_driver.bin binary size 0x43260 bytes. Smallest app partition is 0x100000 bytes. 0xbcda0 bytes (74%) free.

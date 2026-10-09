@@ -27,7 +27,7 @@ set(CMAKE_COMPILER_SYSROOT "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_2026012
 
 set(CMAKE_AR "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32-elf-ar.exe")
 set(CMAKE_CXX_COMPILER_AR "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc-ar.exe")
-set(CMAKE_RANLIB ":")
+set(CMAKE_RANLIB "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32-elf-ranlib.exe")
 set(CMAKE_CXX_COMPILER_RANLIB "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32-elf-gcc-ranlib.exe")
 set(CMAKE_LINKER "C:/Espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32-elf-ld.exe")
 set(CMAKE_LINKER_LINK "")

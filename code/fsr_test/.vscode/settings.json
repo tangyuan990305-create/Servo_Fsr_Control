@@ -1,0 +1,16 @@
+{
+  "idf.currentSetup": "C:\\esp\\v5.5.5\\esp-idf",
+  "idf.flashType": "UART",
+  "idf.port": "COM7",
+  "idf.monitorPort": "COM7",
+  "idf.flashBaudRate": "115200",
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32"
+  },
+  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=C:\\tn20_test\\code\\fsr_test\\build"
+  ]
+}

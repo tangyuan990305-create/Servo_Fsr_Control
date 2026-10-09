@@ -39,7 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader/esp-idf/cmake_install.cmake")
+  include("C:/tn20_test/code/servo_driver/build/bootloader/esp-idf/cmake_install.cmake")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -57,6 +57,6 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-  file(WRITE "C:/Users/damonduan11/Desktop/git/test_3d_code/code/servo_driver/build/bootloader/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "C:/tn20_test/code/servo_driver/build/bootloader/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
