@@ -1,6 +1,7 @@
 #include "fsr_sensor.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -14,12 +15,37 @@
 #define FSR_ADC_ATTEN         ADC_ATTEN_DB_6
 #define FSR_ADC_BITWIDTH      ADC_BITWIDTH_DEFAULT
 #define FSR_READ_SAMPLES      4
-#define FSR_ZERO_SAMPLES      100
+//2026.10.21 修改：启动和机械调整后的零点存在漂移，
+//延长稳定等待及平均窗口，避免捕获瞬态零点。
+#define FSR_ZERO_SETTLE_MS    2000
+#define FSR_ZERO_SAMPLES      1000
 #define FSR_DEFAULT_ZERO_MV   120
-#define FSR_FULL_SCALE_MV     3300
-#define FSR_WEIGHT_MAX_G      20000.0f
-#define FSR_DEADBAND_G        50.0f
 #define FSR_LOCK_TIMEOUT_MS   100
+//2026.10.14 新增：按万用表空载基准、AO-RES=131.7kΩ和
+//IMS-C04A 1KG规格书建立50g~2kg参考模型。
+//2026.10.21 修改：按当前装配空载106mV更新基准，ADC偏移由人工标定
+//2026.11.09 修改：按当前硬件更新万用表空载基准
+#define FSR_AO_DMM_ZERO_MV    100.6f
+//2026.11.09 修改：按当前ADC与万用表空载差值校准
+#define FSR_ADC_OFFSET_MV_DEFAULT 22.0f
+//2026.11.09 修改：按当前实测AO-RES更新压力换算
+#define FSR_AO_RES_KOHM       91.6f
+#define FSR_MODEL_MIN_G       50.0f
+#define FSR_MODEL_MAX_G       2000.0f
+
+typedef struct {
+    float grams;
+    float resistance_kohm;
+} fsr_force_point_t;
+
+static const fsr_force_point_t s_force_points[] = {
+    {50.0f, 280.0f},
+    {100.0f, 141.0f},
+    {200.0f, 68.0f},
+    {500.0f, 22.0f},
+    {1000.0f, 10.0f},
+    {2000.0f, 4.2f},
+};
 
 static const char *TAG = "fsr_sensor";
 
@@ -28,6 +54,7 @@ static adc_cali_handle_t s_calibration;
 static bool s_calibrated;
 static SemaphoreHandle_t s_lock;
 static volatile int s_zero_mv = FSR_DEFAULT_ZERO_MV;
+static volatile float s_adc_offset_mv = FSR_ADC_OFFSET_MV_DEFAULT;
 
 static bool fsr_sensor_adc_calibration_init(
     adc_unit_t unit,
@@ -220,6 +247,9 @@ esp_err_t fsr_sensor_capture_zero(void)
 {
     int voltage_sum = 0;
 
+    //2026.10.21 新增：先等待输入稳定，再开始零点平均
+    vTaskDelay(pdMS_TO_TICKS(FSR_ZERO_SETTLE_MS));
+
     for (int index = 0; index < FSR_ZERO_SAMPLES; ++index) {
         int voltage_mv = 0;
         esp_err_t error = fsr_sensor_read_mv(&voltage_mv);
@@ -231,7 +261,13 @@ esp_err_t fsr_sensor_capture_zero(void)
     }
 
     s_zero_mv = voltage_sum / FSR_ZERO_SAMPLES;
-    ESP_LOGI(TAG, "Zero captured: %dmV", s_zero_mv);
+    //2026.10.21 修改：零点采集只更新显示零点，
+    //ADC偏移由人工标定值决定，避免短时漂移覆盖。
+    ESP_LOGI(
+        TAG,
+        "Zero captured: %dmV, ADC offset: %.1fmV",
+        s_zero_mv,
+        s_adc_offset_mv);
     return ESP_OK;
 }
 
@@ -240,23 +276,70 @@ int fsr_sensor_get_zero_mv(void)
     return s_zero_mv;
 }
 
+//2026.10.21 新增：保存人工标定的ADC偏移
+esp_err_t fsr_sensor_set_adc_offset_mv(int offset_mv)
+{
+    if (offset_mv < 0 || offset_mv > 1000) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    s_adc_offset_mv = (float)offset_mv;
+    return ESP_OK;
+}
+
+float fsr_sensor_get_adc_offset_mv(void)
+{
+    return s_adc_offset_mv;
+}
+
+//2026.10.14 新增：把ESP32 ADC读数校正到万用表空载基准
+int fsr_sensor_get_model_mv(int voltage_mv)
+{
+    float offset_mv = s_adc_offset_mv;
+    int rounded_offset_mv = offset_mv >= 0.0f
+        ? (int)(offset_mv + 0.5f)
+        : (int)(offset_mv - 0.5f);
+    return voltage_mv - rounded_offset_mv;
+}
+
 float fsr_sensor_mv_to_grams(int voltage_mv)
 {
-    const float zero_mv = (float)s_zero_mv;
-    const float span_mv = FSR_FULL_SCALE_MV - zero_mv;
-    if (span_mv <= 0.0f) {
+    const float model_mv = (float)fsr_sensor_get_model_mv(voltage_mv);
+    const float delta_mv = model_mv - FSR_AO_DMM_ZERO_MV;
+    if (delta_mv <= 0.0f) {
         return 0.0f;
     }
 
-    float grams =
-        ((float)voltage_mv - zero_mv) *
-        FSR_WEIGHT_MAX_G / span_mv;
+    // U_AO - 106mV = 0.1V * R_AO-RES / R_FSR
+    const float conductance =
+        delta_mv / (100.0f * FSR_AO_RES_KOHM);
 
-    if (grams < FSR_DEADBAND_G) {
+    const float first_conductance =
+        1.0f / s_force_points[0].resistance_kohm;
+    if (conductance < first_conductance) {
         return 0.0f;
     }
-    if (grams > FSR_WEIGHT_MAX_G) {
-        return FSR_WEIGHT_MAX_G;
+
+    const size_t point_count =
+        sizeof(s_force_points) / sizeof(s_force_points[0]);
+    for (size_t index = 1; index < point_count; ++index) {
+        const float lower_conductance =
+            1.0f / s_force_points[index - 1].resistance_kohm;
+        const float upper_conductance =
+            1.0f / s_force_points[index].resistance_kohm;
+        if (conductance <= upper_conductance ||
+            index + 1 == point_count) {
+            if (conductance >= upper_conductance) {
+                return FSR_MODEL_MAX_G;
+            }
+
+            const float ratio =
+                (conductance - lower_conductance) /
+                (upper_conductance - lower_conductance);
+            return s_force_points[index - 1].grams +
+                ratio * (s_force_points[index].grams -
+                         s_force_points[index - 1].grams);
+        }
     }
-    return grams;
+
+    return FSR_MODEL_MAX_G;
 }

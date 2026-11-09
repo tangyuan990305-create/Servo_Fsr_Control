@@ -29,6 +29,15 @@ void app_main(void)
 
     ESP_ERROR_CHECK(servo_task_start());
 
+    vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVO_ZERO_DELAY_MS));
+    ESP_ERROR_CHECK(servo_set_angle(1, 0));
+    ESP_ERROR_CHECK(servo_set_angle(2, 0));
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ESP_ERROR_CHECK(fsr_monitor_capture_zero());
+
+    //2026.10.12 修改：启动回零和FSR零点采集完成后再接收AT命令，
+    //避免启动阶段的命令被后续回零动作覆盖
     QueueHandle_t line_queue;
     ESP_ERROR_CHECK(uart_receiver_start(&line_queue));
     ESP_ERROR_CHECK(at_parser_start(
@@ -36,13 +45,6 @@ void app_main(void)
         servo_set_id,
         servo_set_angle,
         servo_read_ids));
-
-    vTaskDelay(pdMS_TO_TICKS(STARTUP_SERVO_ZERO_DELAY_MS));
-    ESP_ERROR_CHECK(servo_set_angle(1, 0));
-    ESP_ERROR_CHECK(servo_set_angle(2, 0));
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    ESP_ERROR_CHECK(fsr_monitor_capture_zero());
 
     ESP_LOGI(
         TAG,

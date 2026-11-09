@@ -13,6 +13,10 @@
 #define UART_RECEIVER_QUEUE_LENGTH  8
 #define UART_RECEIVER_TASK_STACK    3072
 #define UART_RECEIVER_TASK_PRIORITY 6
+//2026.10.10 修改：输入链路已确认，关闭逐字节调试，避免干扰压力标定日志
+//2026.10.12 修改：逐字节日志仅用于早期串口输入排障，
+//正常AT测试时关闭，避免大量RX_BYTE日志干扰命令观察
+#define UART_RECEIVER_DEBUG_BYTES   0
 
 static const char *TAG = "uart_receiver";
 static QueueHandle_t s_line_queue;
@@ -49,16 +53,17 @@ static void uart_receive_task(void *argument)
             1,
             pdMS_TO_TICKS(100));
         if (received <= 0) {
-            /*
-             * Some serial terminals do not append CR/LF in text mode.
-             * Treat 100 ms of idle time as the end of a non-empty command.
-             */
-            if (!discard_until_newline) {
-                queue_received_line(&line, &length);
-            } else {
-                discard_until_newline = false;
-            }
+            //2026.10.10 修改：原实现把100ms空闲误判为命令结束，
+            //逐字符输入时 A、T、+ 会被拆成多条命令。
+            //现在只接受 CR 或 LF 作为命令结束符。
             continue;
+        }
+
+        if (UART_RECEIVER_DEBUG_BYTES) {
+            ESP_LOGI(
+                TAG,
+                "RX_BYTE: 0x%02X",
+                (unsigned int)character);
         }
 
         if (character == '\n') {
